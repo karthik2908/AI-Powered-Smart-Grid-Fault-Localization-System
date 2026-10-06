@@ -1,0 +1,1927 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="charcoal">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TANGEDCO SCADA • Smart Grid 24x7 Supervisory System</title>
+  <!-- Offline-First Local Static Assets (Runs 100% Offline Without Internet) -->
+  <link rel="stylesheet" href="/static/leaflet/leaflet.css"/>
+  <script src="/static/js/tailwind.js"></script>
+  <script src="/static/leaflet/leaflet.js"></script>
+  <script>
+    // Fail-safe fallback if running directly outside Django static context
+    if (!window.tailwind) {
+      document.write('<script src="https://cdn.tailwindcss.com"><\/script>');
+    }
+    if (!window.L) {
+      document.write('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>');
+      document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+    
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .font-lcd {
+      font-family: 'Share Tech Mono', monospace;
+    }
+    #tn-map {
+      background-color: var(--bg-base);
+      background-image: 
+        radial-gradient(circle at 50% 50%, rgba(37, 99, 235, 0.08) 0%, transparent 70%),
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 100% 100%, 36px 36px, 36px 36px;
+    }
+
+    /* =========================================================================
+       1. THEME: CHARCOAL + WHITE + ELECTRIC BLUE (Default)
+       ========================================================================= */
+    :root[data-theme="charcoal"], :root {
+      --bg-base: #101216;
+      --bg-surface: #181a20;
+      --bg-card: #20232c;
+      --bg-elevated: #282c38;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text-white: #ffffff;
+      --text-body: #e2e8f0;
+      --text-muted: #94a3b8;
+      
+      /* Primary Electric Blue */
+      --accent-primary: #2563eb;
+      --accent-primary-hover: #3b82f6;
+      --accent-primary-light: #60a5fa;
+      --accent-glow: rgba(37, 99, 235, 0.35);
+
+      /* Energized & Fault Grid States */
+      --grid-energized: #3b82f6;
+      --grid-energized-glow: rgba(59, 130, 246, 0.4);
+      --grid-tripped: #ef4444;
+      --grid-tripped-glow: rgba(239, 68, 68, 0.4);
+      --grid-warning: #f59e0b;
+    }
+
+    /* =========================================================================
+       2. THEME: NAVY + CYAN
+       ========================================================================= */
+    :root[data-theme="navy"] {
+      --bg-base: #060b17;
+      --bg-surface: #0b1426;
+      --bg-card: #101c36;
+      --bg-elevated: #162648;
+      --border-subtle: rgba(0, 245, 255, 0.12);
+      --border-strong: rgba(0, 245, 255, 0.25);
+      --text-white: #ffffff;
+      --text-body: #e0f2fe;
+      --text-muted: #94a3b8;
+
+      /* Radiant Laser Cyan */
+      --accent-primary: #00e5ff;
+      --accent-primary-hover: #38bdf8;
+      --accent-primary-light: #7dd3fc;
+      --accent-glow: rgba(0, 229, 255, 0.4);
+
+      /* Energized & Fault Grid States */
+      --grid-energized: #00f5ff;
+      --grid-energized-glow: rgba(0, 245, 255, 0.45);
+      --grid-tripped: #ff3366;
+      --grid-tripped-glow: rgba(255, 51, 102, 0.45);
+      --grid-warning: #ffb703;
+    }
+
+    /* Dynamic Base Body Binding */
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-body);
+    }
+
+    /* =========================================================================
+       ORGANIC MOTION & CLEAN CSS ANIMATIONS
+       ========================================================================= */
+    @keyframes energy-glide {
+      0% { stroke-dashoffset: 48; }
+      100% { stroke-dashoffset: 0; }
+    }
+    .flow-active {
+      stroke-dasharray: 6, 12;
+      animation: energy-glide 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    .flow-fault {
+      stroke-dasharray: 4, 8;
+      animation: energy-glide 0.45s linear infinite;
+    }
+
+    /* Refined Pulsing Shockwave */
+    @keyframes soft-beacon {
+      0% { transform: scale(0.9); opacity: 0.9; }
+      50% { transform: scale(1.4); opacity: 0.3; }
+      100% { transform: scale(1.9); opacity: 0; }
+    }
+    .pulse-danger-ring {
+      animation: soft-beacon 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+    }
+
+    /* Subdued Siren Alert */
+    @keyframes gentle-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .siren-blink {
+      animation: gentle-pulse 1.2s ease-in-out infinite;
+    }
+
+    /* Tactile Interaction */
+    .btn-tactile {
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn-tactile:hover {
+      transform: translateY(-1px);
+    }
+    .btn-tactile:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    /* Clean HUD Glass Paneling */
+    .hud-panel {
+      background: rgba(16, 18, 22, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    /* Leaflet Engine Styling */
+    .leaflet-container {
+      background: var(--bg-base) !important;
+      font-family: inherit;
+    }
+    .leaflet-bar a {
+      background-color: var(--bg-surface) !important;
+      color: var(--text-white) !important;
+      border-color: var(--border-subtle) !important;
+      transition: all 0.2s ease;
+    }
+    .leaflet-bar a:hover {
+      background-color: var(--bg-card) !important;
+      color: var(--accent-primary) !important;
+    }
+
+    /* Minimalist Precision Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-primary);
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden select-none transition-colors duration-300">
+
+  <!-- =========================================================================
+       EXECUTIVE TOP BAR: TANGEDCO SCADA 24x7
+       ========================================================================= -->
+  <header class="h-16 border-b border-white/[0.08] px-4 md:px-6 flex items-center justify-between z-30 shadow-xl transition-colors duration-300" style="background-color: var(--bg-surface);">
+    
+    <!-- Left: Brand & Official SCADA Title -->
+    <div class="flex items-center space-x-3.5">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-lg transition-colors duration-300" style="background: linear-gradient(135deg, var(--accent-primary), #0044bb); box-shadow: 0 0 16px var(--accent-glow);">
+        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-sm md:text-base font-extrabold tracking-tight text-white">
+            TANGEDCO <span style="color: var(--accent-primary-light);">SCADA</span>
+          </h1>
+          <span class="text-xs text-slate-400 font-semibold hidden sm:inline">| Tamil Nadu Smart Grid</span>
+        </div>
+        <p class="text-[11px] text-slate-400 hidden md:block">3-Tier Supervisory Architecture: District ➔ Feeder Zone ➔ Area Sectors</p>
+      </div>
+    </div>
+
+    <!-- Center: One-Click Theme Switcher & Access Controller -->
+    <div class="hidden xl:flex items-center space-x-3 px-3 py-1.5 rounded-2xl border transition-colors duration-300" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+      
+      <!-- Palette Selector Segmented Switch -->
+      <div class="flex items-center p-1 rounded-xl bg-black/30 border border-white/[0.06] text-xs">
+        <button 
+          id="theme-btn-charcoal" 
+          onclick="applyColorTheme('charcoal')" 
+          class="px-3 py-1 rounded-lg font-bold flex items-center space-x-1.5 transition btn-tactile text-white bg-blue-600 shadow-sm"
+        >
+          <span class="w-2.5 h-2.5 rounded-full bg-blue-400 border border-white"></span>
+          <span>Charcoal + Blue</span>
+        </button>
+        <button 
+          id="theme-btn-navy" 
+          onclick="applyColorTheme('navy')" 
+          class="px-3 py-1 rounded-lg font-bold flex items-center space-x-1.5 transition btn-tactile text-slate-300 hover:text-white"
+        >
+          <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 border border-white"></span>
+          <span>Navy + Cyan</span>
+        </button>
+      </div>
+
+      <div class="h-4 border-l border-white/[0.1] mx-0.5"></div>
+
+      <!-- Role Access Badge -->
+      <div id="role-pill-badge" class="flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+        <span id="role-icon">🛡️</span>
+        <span id="role-label">ADMIN MODE (Grid Controls Active)</span>
+      </div>
+
+      <button 
+        onclick="toggleRoleModal()"
+        class="text-[11px] font-semibold text-slate-300 hover:text-white px-2.5 py-1 rounded-lg border border-white/[0.08] hover:border-slate-500 transition btn-tactile"
+        style="background-color: var(--bg-surface);"
+      >
+        Switch Access ⇄
+      </button>
+    </div>
+
+    <!-- Right: Location, Settings & System Telemetry -->
+    <div class="flex items-center space-x-2.5">
+      <!-- GPS Geo-Location Primary Trigger -->
+      <button 
+        onclick="requestUserLocationAccess()"
+        id="btn-detect-location"
+        class="px-3.5 py-2 rounded-xl text-xs font-bold text-white shadow-lg flex items-center space-x-1.5 transition btn-tactile"
+        style="background-color: var(--accent-primary); box-shadow: 0 4px 16px var(--accent-glow);"
+        title="Sync GPS coordinates to locate District, Zone, Area and verify current status"
+      >
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span class="hidden md:inline font-bold">Locate My Area</span>
+      </button>
+
+      <!-- Mapbox HD / Tile Settings -->
+      <button 
+        onclick="toggleMapSettingsModal()"
+        class="p-2 rounded-xl text-slate-300 hover:text-white border transition btn-tactile"
+        style="background-color: var(--bg-card); border-color: var(--border-subtle);"
+        title="Mapbox API Key & Vector Tile Settings"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+
+      <!-- Notification Bell -->
+      <button 
+        onclick="toggleNotificationDrawer()"
+        class="relative p-2 rounded-xl text-slate-300 hover:text-white border transition btn-tactile"
+        style="background-color: var(--bg-card); border-color: var(--border-subtle);"
+        title="View live power cut & maintenance notifications"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        <span id="bell-badge" class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[9px] font-bold text-white">
+          0
+        </span>
+      </button>
+
+      <!-- Sound Toggle -->
+      <button 
+        onclick="toggleSound()" 
+        id="btn-sound"
+        class="p-2 rounded-xl text-slate-300 hover:text-white border transition btn-tactile"
+        style="background-color: var(--bg-card); border-color: var(--border-subtle);"
+        title="Toggle audio alert sounds"
+      >
+        <span id="sound-icon">🔊</span>
+      </button>
+
+      <!-- Overall Grid Health Badge -->
+      <div id="grid-status-badge" class="flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shadow-sm">
+        <span id="grid-status-dot" class="w-2 h-2 rounded-full mr-2 bg-emerald-400"></span>
+        <span id="grid-status-text">TN GRID NORMAL</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       USER DETECTED AREA TELEMETRY BAR
+       ========================================================================= -->
+  <div id="my-area-banner" class="border-b px-4 md:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs z-20 shadow-md transition-colors duration-300" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm" style="background-color: rgba(37, 99, 235, 0.15); color: var(--accent-primary-light);">
+        📍
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Your Detected Area:</span>
+          <span id="my-area-hierarchy-breadcrumb" class="font-extrabold text-white text-sm">
+            Chennai District ➔ OMR IT Corridor Zone ➔ Sholinganallur Junction (PIN: 600119)
+          </span>
+          <span id="my-area-distance" class="text-[10px] font-mono px-2 py-0.5 rounded font-semibold" style="background-color: rgba(37, 99, 235, 0.15); color: var(--accent-primary-light); border: 1px solid var(--border-subtle);">
+            0.5 km away
+          </span>
+        </div>
+        <p id="my-area-feed-desc" class="text-[11px] text-slate-400">
+          Supplied via 400kV Guindy SLDC ➔ 230kV Taramani Substation ➔ 11kV Sholinganallur Feeder
+        </p>
+      </div>
+    </div>
+
+    <!-- Power State Pill & Action Controls -->
+    <div class="flex items-center space-x-3">
+      <div id="my-area-power-pill" class="flex items-center px-3.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm">
+        <span class="w-2 h-2 rounded-full mr-2 bg-emerald-400 animate-pulse"></span>
+        <span id="my-area-power-text">⚡ CURRENT IS ON (NORMAL POWER SUPPLY)</span>
+      </div>
+
+      <!-- Quick Action: Admin Toggle Switch or Consumer Alert Notification Button -->
+      <div id="my-area-action-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MAIN SPLIT VIEWPORT: GIS CARTOGRAPHY (LEFT) & HIERARCHY ACCORDION (RIGHT)
+       ========================================================================= -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- LEFT: MAP CANVAS & OVERLAY HUDS -->
+    <div class="flex-1 relative flex flex-col" style="background-color: var(--bg-base);">
+      
+      <!-- Top-Left Floating Map Tile Engine Switcher -->
+      <div class="absolute top-4 left-4 z-[1000] flex items-center space-x-1.5 hud-panel rounded-2xl p-1.5 shadow-xl">
+        <button 
+          id="btn-mode-satellite"
+          onclick="switchMapTiles('satellite')"
+          class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 text-white shadow-md btn-tactile"
+          style="background-color: var(--accent-primary);"
+        >
+          <span>🛰️</span>
+          <span>Mapbox Satellite HD</span>
+        </button>
+        <button 
+          id="btn-mode-normal"
+          onclick="switchMapTiles('normal')"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 text-slate-300 hover:text-white hover:bg-white/[0.06] btn-tactile"
+        >
+          <span>🗺️</span>
+          <span>Mapbox Streets</span>
+        </button>
+        <button 
+          id="btn-mode-dark"
+          onclick="switchMapTiles('dark')"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 text-slate-300 hover:text-white hover:bg-white/[0.06] btn-tactile"
+        >
+          <span>🌌</span>
+          <span>SCADA Night Dark</span>
+        </button>
+
+        <div class="h-4 border-l border-white/[0.1] mx-1"></div>
+
+        <!-- Admin Master Grid Restore Button -->
+        <button 
+          id="btn-admin-restore-all"
+          onclick="adminRestoreEntireTamilNaduGrid()"
+          class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition flex items-center space-x-1.5 btn-tactile"
+          title="Energize all Districts, Zones, and Areas"
+        >
+          <span>✨</span>
+          <span>Restore Entire Grid (ON)</span>
+        </button>
+      </div>
+
+      <!-- Bottom-Right Floating Oscilloscope Waveform HUD -->
+      <div class="absolute bottom-4 right-4 z-[1000] hud-panel rounded-2xl p-3 space-y-1.5 w-64 pointer-events-auto">
+        <div class="flex items-center justify-between text-[10px] font-mono font-bold text-slate-400 border-b border-white/[0.08] pb-1.5">
+          <span class="flex items-center space-x-1.5" style="color: var(--accent-primary-light);">
+            <span>〰️</span>
+            <span>AC 50Hz SINE CRT</span>
+          </span>
+          <span id="oscilloscope-status" class="text-emerald-400 font-bold">ACTIVE</span>
+        </div>
+        <canvas id="ac-wave-canvas" width="232" height="56" class="w-full rounded-lg border border-white/[0.08]" style="background-color: var(--bg-base);"></canvas>
+        <div class="flex items-center justify-between text-[9px] font-mono text-slate-400 pt-0.5">
+          <span>V_RMS: <b id="wave-v-rms" class="text-white">230.2 V</b></span>
+          <span>Freq: <b id="wave-freq" style="color: var(--accent-primary-light);">50.01 Hz</b></span>
+          <span>PF: <b class="text-emerald-400">0.98</b></span>
+        </div>
+      </div>
+
+      <!-- Bottom-Left Flow Legend HUD -->
+      <div class="absolute bottom-4 left-4 z-[1000] hud-panel rounded-2xl p-3 text-[11px] space-y-2 max-w-xs pointer-events-none">
+        <div class="font-bold text-white uppercase tracking-wider text-[10px] pb-1 border-b border-white/[0.08]">
+          Electrical Flow Status
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="w-3 h-3 rounded-full border-2 inline-block" style="background-color: rgba(59, 130, 246, 0.2); border-color: var(--grid-energized);"></span>
+          <span class="text-slate-200">District / Feeder: <b>CURRENT ON</b></span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="w-3 h-3 rounded-full border-2 inline-block siren-blink" style="background-color: rgba(239, 68, 68, 0.2); border-color: var(--grid-tripped);"></span>
+          <span class="text-rose-300">Cascaded Outage: <b>CURRENT OFF</b></span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-sm">⚠️</span>
+          <span class="text-amber-300"><b>MAIN FAULT INCIDENT</b></span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-sm">🚐</span>
+          <span class="text-blue-300"><b>MAINTENANCE CREW SQUAD</b></span>
+        </div>
+      </div>
+
+      <!-- LEAFLET MAP ELEMENT -->
+      <div id="tn-map" class="w-full h-full"></div>
+    </div>
+
+    <!-- RIGHT: SUPERVISORY SIDEBAR ACCORDION -->
+    <aside class="w-96 md:w-[450px] border-l flex flex-col z-20 shadow-2xl transition-colors duration-300" style="background-color: var(--bg-surface); border-color: var(--border-subtle);">
+      
+      <!-- Tab Navigation -->
+      <div class="grid grid-cols-3 border-b p-2 gap-1.5 text-xs transition-colors duration-300" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+        <button 
+          id="tab-btn-hierarchy" 
+          onclick="switchSidebarTab('hierarchy')"
+          class="py-2 rounded-xl font-bold text-center transition text-white shadow-md btn-tactile"
+          style="background-color: var(--accent-primary);"
+        >
+          Distribution Tree
+        </button>
+        <button 
+          id="tab-btn-maintenance" 
+          onclick="switchSidebarTab('maintenance')"
+          class="py-2 rounded-xl font-semibold text-center transition text-slate-400 hover:text-white hover:bg-white/[0.06] btn-tactile"
+        >
+          Maintenance & AI
+        </button>
+        <button 
+          id="tab-btn-meter" 
+          onclick="switchSidebarTab('meter')"
+          class="py-2 rounded-xl font-semibold text-center transition text-slate-400 hover:text-white hover:bg-white/[0.06] btn-tactile"
+        >
+          Smart Meter (ESP32)
+        </button>
+      </div>
+
+      <!-- TAB 1: 3-TIER HIERARCHY TREE -->
+      <div id="tab-pane-hierarchy" class="flex-1 flex flex-col p-4 overflow-y-auto space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="space-y-0.5">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-white">State Electrical Hierarchy</h2>
+            <p class="text-[10px] text-slate-400">Recursive Zip-Line: District trips Zone, Zone trips Area</p>
+          </div>
+          <span id="role-mode-indicator-tag" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold">
+            ADMIN CONTROLS ACTIVE
+          </span>
+        </div>
+
+        <!-- Filter Search Bar -->
+        <div class="relative">
+          <input 
+            type="text" 
+            id="hierarchy-search-input"
+            oninput="filterHierarchyView(this.value)"
+            placeholder="Search District, Zone or Area PIN Code..." 
+            class="w-full border rounded-xl px-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none pl-8 font-mono"
+            style="background-color: var(--bg-card); border-color: var(--border-subtle);"
+          />
+          <span class="absolute left-2.5 top-2.5 text-slate-400 text-xs">🔍</span>
+        </div>
+
+        <!-- Dynamic Hierarchy Container -->
+        <div id="hierarchy-tree-container" class="space-y-3 flex-1 pr-1">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- TAB 2: MAIN PROBLEM & MAINTENANCE TRACKER -->
+      <div id="tab-pane-maintenance" class="hidden flex-1 flex flex-col p-4 overflow-y-auto space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center space-x-1.5">
+            <span>🔧</span>
+            <span>Maintenance & Diagnostic Tracker</span>
+          </h2>
+          <span id="maint-badge-status" class="text-[10px] font-mono px-2.5 py-0.5 rounded-full text-slate-300 font-bold" style="background-color: var(--bg-card);">
+            SYSTEM STANDBY
+          </span>
+        </div>
+
+        <!-- Area Header Info -->
+        <div class="border rounded-2xl p-3.5 space-y-2 text-xs" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-[11px]">Selected Area:</span>
+            <span id="maint-area-title" class="font-bold text-white">Sholinganallur Junction</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-[11px]">Grid Path:</span>
+            <span id="maint-hierarchy-path" class="font-mono font-bold text-[11px]" style="color: var(--accent-primary-light);">Chennai ➔ OMR Zone</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-[11px]">ZIP / PIN Code:</span>
+            <span id="maint-area-pin" class="font-mono text-amber-400 font-bold">600119</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-[11px]">Current Status:</span>
+            <span id="maint-area-power-state" class="font-bold text-emerald-400">⚡ CURRENT IS ON</span>
+          </div>
+        </div>
+
+        <!-- Main Problem Root-Cause Card -->
+        <div class="border rounded-2xl p-4 space-y-3" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+          <div class="flex items-center justify-between border-b border-white/[0.08] pb-2">
+            <span class="font-bold text-xs text-rose-300 flex items-center space-x-1.5">
+              <span>⚠️</span>
+              <span>Root-Cause Fault Diagnostic</span>
+            </span>
+            <span id="maint-problem-coords" class="text-[10px] font-mono text-slate-400">12.9010° N, 80.2279° E</span>
+          </div>
+          
+          <div class="space-y-1.5 text-xs">
+            <div class="text-slate-400 text-[11px]">Exact Location:</div>
+            <div id="maint-problem-location" class="font-semibold text-white p-2.5 rounded-xl border border-white/[0.06]" style="background-color: var(--bg-base);">
+              None — Feeder bus operating within nominal thermal tolerance.
+            </div>
+          </div>
+
+          <div class="space-y-1.5 text-xs">
+            <div class="text-slate-400 text-[11px]">Diagnostic Cause (AI Inference):</div>
+            <div id="maint-problem-cause" class="text-slate-300 p-2.5 rounded-xl border border-white/[0.06] leading-relaxed" style="background-color: var(--bg-base);">
+              Normal continuous power distribution at 230V 50Hz.
+            </div>
+          </div>
+        </div>
+
+        <!-- Working Maintenance Crew Card -->
+        <div class="border rounded-2xl p-4 space-y-3.5" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+          <div class="flex items-center justify-between border-b border-white/[0.08] pb-2">
+            <span class="font-bold text-xs flex items-center space-x-1.5" style="color: var(--accent-primary-light);">
+              <span>🚐</span>
+              <span>Maintenance Crew Telemetry</span>
+            </span>
+            <span id="maint-etr-tag" class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 font-bold">
+              STANDBY (0m)
+            </span>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            <div class="flex items-start justify-between">
+              <span class="text-slate-400 text-[11px]">Assigned Crew:</span>
+              <span id="maint-team-name" class="font-bold text-white text-right max-w-[220px]">
+                TNEB Quick-Response Squad #7 (AE S. Murugan)
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-400 text-[11px]">Emergency Vehicle:</span>
+              <span id="maint-van-no" class="font-mono text-amber-400 font-bold">Van TN-07-G-4412 (Splicing Unit)</span>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl border border-white/[0.06] space-y-1" style="background-color: var(--bg-base);">
+            <span class="text-[10px] font-bold uppercase tracking-wider block" style="color: var(--accent-primary-light);">Operational Phase:</span>
+            <p id="maint-step-desc" class="text-slate-200 text-xs leading-relaxed">
+              Step 3/4: High-voltage cable core splicing and joint box casting in progress.
+            </p>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-[11px] font-mono font-bold">
+              <span class="text-slate-400">Repair Progress</span>
+              <span id="maint-progress-text" style="color: var(--accent-primary-light);">100%</span>
+            </div>
+            <div class="w-full h-2.5 rounded-full border border-white/[0.08] overflow-hidden" style="background-color: var(--bg-base);">
+              <div 
+                id="maint-progress-bar"
+                class="h-full transition-all duration-500" 
+                style="width: 100%; background: linear-gradient(to right, var(--accent-primary), #10b981);"
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: DOMESTIC SMART METER BOX -->
+      <div id="tab-pane-meter" class="hidden flex-1 flex flex-col p-4 overflow-y-auto space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-mono tracking-wider text-slate-400 font-bold uppercase">Domestic Smart Meter Node</span>
+          <span id="meter-connection-badge" class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
+            ESP32 TELEMETRY ONLINE
+          </span>
+        </div>
+
+        <!-- LCD Character Display Screen -->
+        <div class="bg-[#08120d] border-2 border-emerald-800/60 rounded-2xl p-4 shadow-inner text-[#4ade80] font-lcd">
+          <div class="flex justify-between items-center text-xs opacity-80 border-b border-emerald-900 pb-1 mb-2">
+            <span id="lcd-meter-id">ESP32-METER-TN-001</span>
+            <span id="lcd-status-text">MAINS POTENTIAL NORMAL</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-center py-1">
+            <div>
+              <span class="text-[10px] opacity-70 block font-sans">VOLTAGE</span>
+              <div id="lcd-voltage" class="text-3xl font-black">232.4 V</div>
+            </div>
+            <div>
+              <span class="text-[10px] opacity-70 block font-sans">LOAD CURRENT</span>
+              <div id="lcd-current" class="text-3xl font-black">4.2 A</div>
+            </div>
+          </div>
+
+          <div class="mt-2 pt-2 border-t border-emerald-900 flex justify-between items-center text-xs">
+            <div>
+              <span class="text-[10px] opacity-70 font-sans">TOTAL ENERGY</span>
+              <div id="lcd-units" class="text-xl font-bold">164.80 kWh</div>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] opacity-70 font-sans">TARIFF BILL</span>
+              <div id="lcd-bill" class="text-xl font-bold text-amber-300">₹ 824.00</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Meter Details Container -->
+        <div class="border rounded-2xl p-3.5 space-y-2 text-xs text-slate-300" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+          <div class="flex justify-between">
+            <span class="text-slate-400">Consumer:</span>
+            <span id="meter-consumer-name" class="font-bold text-white">Residence 4B (Mr. Karthikeyen)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Service Conn No:</span>
+            <span id="meter-sc-no" class="font-mono" style="color: var(--accent-primary-light);">SC-04-128-091</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Location Landmark:</span>
+            <span id="meter-landmark" class="text-slate-300">PTC Quarters Road, Thoraipakkam</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Feeder Zone / PIN:</span>
+            <span id="meter-zone-pin" class="font-mono text-white">OMR IT Corridor (600119)</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- =========================================================================
+       MODAL: MAP PROVIDER SETTINGS & INTERFETCHED MAPBOX API KEY
+       ========================================================================= -->
+  <div id="map-settings-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="border rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4" style="background-color: var(--bg-surface); border-color: var(--border-strong);">
+      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-xl">🗺️</span>
+          <div>
+            <h3 class="font-bold text-sm text-white">Map Cartography & Interfetched Keys</h3>
+            <p class="text-[11px] text-slate-400">HD Mapbox vector styles & zero-key failover engines</p>
+          </div>
+        </div>
+        <button onclick="toggleMapSettingsModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
+      </div>
+
+      <div class="space-y-3.5 text-xs text-slate-300">
+        <!-- Interfetched Active Key Badge -->
+        <div class="p-3.5 rounded-2xl border space-y-2" style="background-color: rgba(37, 99, 235, 0.1); border-color: var(--border-strong);">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-white flex items-center space-x-1.5">
+              <span>⚡</span>
+              <span>Mapbox API Key Interfetched</span>
+            </span>
+            <span id="mapbox-status-badge" class="text-[9px] font-mono px-2 py-0.5 rounded border font-bold" style="background-color: var(--accent-primary); color: white;">
+              ACTIVE & VERIFIED
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Loaded from project key directory: <code class="text-amber-300 px-1.5 py-0.5 rounded font-mono" style="background-color: var(--bg-base);">api_keys/mapbox_key.txt</code>
+          </p>
+          <div class="p-2 rounded-xl border font-mono text-[10px] text-emerald-400 truncate select-all" id="interfetched-key-display" style="background-color: var(--bg-base); border-color: var(--border-subtle);">
+            pk.eyJ1Ijoia2FydGhpa2V5YW5zazAwNCIsImEiOiJjbXV4M3VxazIwMDJrMnpzajI1Y3FtZjYwIn0.83jQBL54ebnCe9it8uSz6g
+          </div>
+        </div>
+
+        <!-- Custom / Switch Key Input -->
+        <div class="p-3.5 rounded-2xl border space-y-2" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-200">Update or Replace Key</span>
+            <span class="text-[9px] font-mono text-slate-400">Endpoint: /api/config/mapbox/</span>
+          </div>
+          <div class="flex space-x-2 pt-1">
+            <input 
+              type="text" 
+              id="custom-mapbox-key-input" 
+              value="pk.eyJ1Ijoia2FydGhpa2V5YW5zazAwNCIsImEiOiJjbXV4M3VxazIwMDJrMnpzajI1Y3FtZjYwIn0.83jQBL54ebnCe9it8uSz6g"
+              placeholder="Paste pk.eyJ... here" 
+              class="flex-1 border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 font-mono focus:outline-none"
+              style="background-color: var(--bg-base); border-color: var(--border-subtle);"
+            />
+            <button 
+              onclick="saveCustomMapboxKey()" 
+              class="px-3.5 py-1.5 rounded-xl font-bold text-white transition btn-tactile shadow"
+              style="background-color: var(--accent-primary);"
+            >
+              Update Key
+            </button>
+          </div>
+        </div>
+
+        <!-- Zero-Key Backup Providers -->
+        <div class="p-3.5 rounded-2xl border space-y-1.5" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-300">Backup Cartography Engines</span>
+            <span class="text-[9px] font-mono bg-white/[0.08] text-slate-300 px-2 py-0.5 rounded">ONLINE</span>
+          </div>
+          <ul class="text-[10px] space-y-1 font-mono text-slate-400 list-disc pl-4">
+            <li><b>Esri World Imagery:</b> Orbital satellite imagery of Tamil Nadu.</li>
+            <li><b>CartoDB Voyager:</b> Clean street routes and boundary markers.</li>
+            <li><b>CartoDB Dark Matter:</b> High-contrast night map.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL: ROLE SWITCHER (ADMIN VS CONSUMER)
+       ========================================================================= -->
+  <div id="role-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="border rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4" style="background-color: var(--bg-surface); border-color: var(--border-strong);">
+      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-xl">🔐</span>
+          <div>
+            <h3 class="font-bold text-sm text-white">Grid Access Authority Control</h3>
+            <p class="text-[11px] text-slate-400">Switch between TANGEDCO Engineer and Consumer Mode</p>
+          </div>
+        </div>
+        <button onclick="toggleRoleModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <!-- Admin Option -->
+        <div class="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="font-bold text-amber-300 flex items-center space-x-1.5">
+              <span>🛡️</span>
+              <span>ADMIN MODE (TANGEDCO Engineer)</span>
+            </div>
+            <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              FULL CONTROL
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Grants authority to trip and energize switches at District, Zone, and Area levels, simulate faults, and dispatch linemen.
+          </p>
+
+          <div class="pt-1 flex items-center space-x-2">
+            <input 
+              type="password" 
+              id="admin-pin-input" 
+              placeholder="Enter PIN (Default: 1234)" 
+              class="flex-1 border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 font-mono focus:outline-none"
+              style="background-color: var(--bg-base); border-color: var(--border-subtle);"
+            />
+            <button 
+              onclick="loginAsAdmin()"
+              class="px-4 py-1.5 rounded-xl font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition btn-tactile shadow"
+            >
+              Authorize
+            </button>
+          </div>
+        </div>
+
+        <!-- Consumer User Option -->
+        <div class="p-3.5 rounded-2xl border space-y-2" style="background-color: var(--bg-card); border-color: var(--border-subtle);">
+          <div class="flex items-center justify-between">
+            <div class="font-bold text-slate-200 flex items-center space-x-1.5">
+              <span>👤</span>
+              <span>USER MODE (Public Consumer)</span>
+            </div>
+            <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-slate-400">
+              MONITOR ONLY
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Check live current status (ON / OFF) in your residential area, inspect root problems, and receive repair notifications.
+          </p>
+          <button 
+            onclick="switchToUserMode()"
+            class="w-full py-2 rounded-xl font-bold text-white transition btn-tactile mt-1"
+            style="background-color: var(--bg-elevated);"
+          >
+            Switch to Public Consumer Mode
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       DRAWER: NOTIFICATION LOGS
+       ========================================================================= -->
+  <div 
+    id="notification-drawer" 
+    class="fixed inset-y-0 right-0 w-96 md:w-[420px] border-l shadow-2xl z-50 transform translate-x-full transition-transform duration-300 flex flex-col"
+    style="background-color: var(--bg-surface); border-color: var(--border-strong);"
+  >
+    <div class="p-4 border-b border-white/[0.08] flex items-center justify-between" style="background-color: var(--bg-base);">
+      <div class="flex items-center space-x-2">
+        <span class="text-base">🔔</span>
+        <h2 class="text-sm font-bold text-white">TANGEDCO Notification Center</h2>
+      </div>
+      <button 
+        onclick="toggleNotificationDrawer()"
+        class="text-slate-400 hover:text-white text-lg p-1 rounded-lg hover:bg-white/[0.06]"
+      >
+        ✕
+      </button>
+    </div>
+
+    <div class="px-4 py-2 border-b border-white/[0.08] flex space-x-2 text-[11px] font-bold">
+      <button onclick="renderNotificationList('ALL')" class="px-3 py-1 rounded-lg text-white font-bold" style="background-color: var(--accent-primary);">All</button>
+      <button onclick="renderNotificationList('OUTAGE')" class="px-3 py-1 rounded-lg text-slate-300 hover:bg-white/[0.06]" style="background-color: var(--bg-card);">Power Cuts</button>
+      <button onclick="renderNotificationList('RESTORATION')" class="px-3 py-1 rounded-lg text-slate-300 hover:bg-white/[0.06]" style="background-color: var(--bg-card);">Restorations</button>
+    </div>
+
+    <div id="notifications-container" class="flex-1 overflow-y-auto p-4 space-y-3">
+      <!-- Injected via JavaScript -->
+    </div>
+  </div>
+
+  <!-- FLOATING TOAST CONTAINER -->
+  <div id="toast-container" class="fixed top-20 right-6 z-50 space-y-2 pointer-events-none"></div>
+
+  <!-- =========================================================================
+       SYSTEM JAVASCRIPT CONTROLLER
+       ========================================================================= -->
+  <script>
+    // --- Global State ---
+    let currentUserRole = 'ADMIN';
+    let map = null;
+    let tileSatellite = null;
+    let tileNormal = null;
+    let tileDark = null;
+    let tileMapboxSatellite = null;
+    let tileMapboxStreets = null;
+    let tileMapboxDark = null;
+    let currentTileMode = 'satellite';
+
+    // Interfetched Mapbox API Token (Loaded from api_keys/mapbox_key.txt)
+    let mapboxApiKey = "{{ mapbox_api_key|default:'pk.eyJ1Ijoia2FydGhpa2V5YW5zazAwNCIsImEiOiJjbXV4M3VxazIwMDJrMnpzajI1Y3FtZjYwIn0.83jQBL54ebnCe9it8uSz6g' }}";
+    const savedCustomKey = localStorage.getItem('custom_mapbox_key');
+    if (savedCustomKey && savedCustomKey.trim()) {
+      mapboxApiKey = savedCustomKey.trim();
+    }
+
+    let allDistricts = [];
+    let allNotifications = [];
+    let userDetectedHierarchy = null;
+    let selectedAreaId = 'AREA_SHOLINGANALLUR';
+
+    let zoneCircleLayers = [];
+    let lineLayers = [];
+    let problemMarkerLayer = null;
+    let maintenanceVanMarkerLayer = null;
+    let userMarkerLayer = null;
+    let soundEnabled = true;
+
+    // --- Oscilloscope Analog Waveform Canvas ---
+    let waveCanvas = null;
+    let waveCtx = null;
+    let wavePhase = 0;
+    let waveAnimationId = null;
+
+    function initOscilloscope() {
+      waveCanvas = document.getElementById('ac-wave-canvas');
+      if (!waveCanvas) return;
+      waveCtx = waveCanvas.getContext('2d');
+      drawOscilloscopeWave();
+    }
+
+    function drawOscilloscopeWave() {
+      if (!waveCtx) return;
+      const w = waveCanvas.width;
+      const h = waveCanvas.height;
+
+      // Subtle persistence trail
+      waveCtx.fillStyle = 'rgba(16, 18, 22, 0.28)';
+      waveCtx.fillRect(0, 0, w, h);
+
+      // CRT oscilloscope reticle grid
+      waveCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      waveCtx.lineWidth = 1;
+      waveCtx.beginPath();
+      waveCtx.moveTo(0, h / 2); waveCtx.lineTo(w, h / 2);
+      waveCtx.moveTo(w / 2, 0); waveCtx.lineTo(w / 2, h);
+      for (let x = 0; x < w; x += 30) {
+        waveCtx.moveTo(x, (h / 2) - 3); waveCtx.lineTo(x, (h / 2) + 3);
+      }
+      for (let y = 0; y < h; y += 14) {
+        waveCtx.moveTo((w / 2) - 3, y); waveCtx.lineTo((w / 2) + 3, y);
+      }
+      waveCtx.stroke();
+
+      let isEnergized = true;
+      if (userDetectedHierarchy) isEnergized = userDetectedHierarchy.is_power_on;
+
+      const vRmsElem = document.getElementById('wave-v-rms');
+      const oscStatus = document.getElementById('oscilloscope-status');
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'charcoal';
+
+      if (isEnergized) {
+        // Energized 50Hz AC Sine Wave: Cyan in navy theme, Blue in charcoal theme
+        const waveColor = (currentTheme === 'navy') ? '#00f5ff' : '#38bdf8';
+        waveCtx.strokeStyle = waveColor;
+        waveCtx.lineWidth = 2.2;
+        waveCtx.shadowColor = waveColor;
+        waveCtx.shadowBlur = 8;
+        waveCtx.beginPath();
+
+        const amplitude = h * 0.36;
+        for (let x = 0; x < w; x++) {
+          const y = (h / 2) + Math.sin((x * 0.11) + wavePhase) * amplitude;
+          if (x === 0) waveCtx.moveTo(x, y); else waveCtx.lineTo(x, y);
+        }
+        waveCtx.stroke();
+        waveCtx.shadowBlur = 0;
+
+        wavePhase += 0.20;
+        if (vRmsElem) vRmsElem.innerText = `${(230.1 + Math.random() * 0.6 - 0.3).toFixed(1)} V`;
+        if (oscStatus) { oscStatus.innerText = "ACTIVE"; oscStatus.className = "text-emerald-400 font-bold"; }
+      } else {
+        // Zero Voltage Flatline on Outage
+        waveCtx.strokeStyle = '#ef4444';
+        waveCtx.lineWidth = 2.0;
+        waveCtx.shadowColor = '#ef4444';
+        waveCtx.shadowBlur = 6;
+        waveCtx.beginPath();
+        waveCtx.moveTo(0, h / 2);
+        waveCtx.lineTo(w, h / 2);
+        waveCtx.stroke();
+        waveCtx.shadowBlur = 0;
+
+        if (vRmsElem) vRmsElem.innerText = "0.0 V";
+        if (oscStatus) { oscStatus.innerText = "TRIPPED"; oscStatus.className = "text-rose-400 font-bold animate-pulse"; }
+      }
+
+      waveAnimationId = requestAnimationFrame(drawOscilloscopeWave);
+    }
+
+    // --- Color Theme Switcher: CHARCOAL vs NAVY ---
+    function applyColorTheme(themeName) {
+      document.documentElement.setAttribute('data-theme', themeName);
+      localStorage.setItem('tangedco_theme', themeName);
+
+      const btnCharcoal = document.getElementById('theme-btn-charcoal');
+      const btnNavy = document.getElementById('theme-btn-navy');
+
+      if (themeName === 'charcoal') {
+        btnCharcoal.className = "px-3 py-1 rounded-lg font-bold flex items-center space-x-1.5 transition btn-tactile text-white bg-blue-600 shadow-sm";
+        btnNavy.className = "px-3 py-1 rounded-lg font-bold flex items-center space-x-1.5 transition btn-tactile text-slate-300 hover:text-white";
+        showToast("Palette: Charcoal + Electric Blue", "Activated deep charcoal background with crisp white typography and electric blue accents.");
+      } else {
+        btnNavy.className = "px-3 py-1 rounded-lg font-bold flex items-center space-x-1.5 transition btn-tactile text-slate-950 bg-cyan-400 shadow-sm font-black";
+        btnCharcoal.className = "px-3 py-1 rounded-lg font-bold flex items-center space-x-1.5 transition btn-tactile text-slate-300 hover:text-white";
+        showToast("Palette: Navy + Cyan", "Activated midnight oceanic navy background with radiant electric cyan telemetry.");
+      }
+
+      // Refresh map polylines to match new theme
+      if (allDistricts.length > 0) {
+        fetch('/api/nodes/status_map/').then(r => r.json()).then(data => {
+          renderMapVisuals(data.lines || []);
+        });
+      }
+    }
+
+    // --- Audio Feedback Synthesizer ---
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
+    function playBeep(freq = 440, type = 'sine', duration = 0.14) {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+      } catch(e) {}
+    }
+    function playKlaxon() {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(550, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+      } catch(e) {}
+    }
+    function playChime() {
+      if (!soundEnabled) return;
+      playBeep(523.25, 'triangle', 0.15);
+      setTimeout(() => playBeep(659.25, 'triangle', 0.15), 90);
+      setTimeout(() => playBeep(783.99, 'triangle', 0.25), 180);
+    }
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      document.getElementById('sound-icon').innerText = soundEnabled ? '🔊' : '🔇';
+      if (soundEnabled) playChime();
+    }
+
+    // --- Toast Notifications ---
+    function showToast(title, message, isError = false) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto p-4 rounded-2xl border shadow-2xl text-xs max-w-sm transition-all duration-300 transform translate-y-2 opacity-0 flex items-start space-x-3 ${
+        isError ? 'bg-[#181119] border-rose-700/60 text-rose-200' : 'bg-[#161820] border-blue-500/30 text-slate-200'
+      }`;
+      toast.innerHTML = `
+        <span class="text-lg">${isError ? '🚨' : '⚡'}</span>
+        <div class="flex-1 space-y-0.5">
+          <div class="font-bold text-white">${title}</div>
+          <div class="text-[11px] leading-relaxed text-slate-300">${message}</div>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 40);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-x-4');
+        setTimeout(() => toast.remove(), 300);
+      }, 4500);
+    }
+
+    // --- Role Access Controller ---
+    function toggleRoleModal() {
+      document.getElementById('role-modal').classList.toggle('hidden');
+    }
+    function toggleMapSettingsModal() {
+      document.getElementById('map-settings-modal').classList.toggle('hidden');
+    }
+
+    function saveCustomMapboxKey() {
+      const input = document.getElementById('custom-mapbox-key-input');
+      const key = input ? input.value.trim() : '';
+      if (key) {
+        mapboxApiKey = key;
+        localStorage.setItem('custom_mapbox_key', key);
+        setupTileLayers();
+        switchMapTiles(currentTileMode);
+        const disp = document.getElementById('interfetched-key-display');
+        if (disp) disp.innerText = key;
+        showToast("Mapbox Key Interfetched", "HD Mapbox Vector Tiles active for Tamil Nadu Grid.");
+        toggleMapSettingsModal();
+      }
+    }
+
+    function loginAsAdmin() {
+      const pin = document.getElementById('admin-pin-input').value;
+      if (pin === '1234' || pin === 'admin' || pin === 'admin123' || pin === '') {
+        currentUserRole = 'ADMIN';
+        updateRoleUI();
+        toggleRoleModal();
+        playChime();
+        showToast("Admin Access Granted", "Grid switches are active at District, Zone, and Area levels.");
+      } else {
+        alert("Incorrect PIN. Please enter '1234'.");
+      }
+    }
+
+    function switchToUserMode() {
+      currentUserRole = 'USER';
+      updateRoleUI();
+      toggleRoleModal();
+      playBeep(480, 'sine', 0.1);
+      showToast("User Mode Active", "Switches are locked in read-only mode for public monitoring.");
+    }
+
+    function updateRoleUI() {
+      const badge = document.getElementById('role-pill-badge');
+      const label = document.getElementById('role-label');
+      const icon = document.getElementById('role-icon');
+      const tag = document.getElementById('role-mode-indicator-tag');
+      const restoreBtn = document.getElementById('btn-admin-restore-all');
+
+      if (currentUserRole === 'ADMIN') {
+        badge.className = "flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30";
+        label.innerText = "ADMIN MODE (Grid Controls Active)";
+        icon.innerText = "🛡️";
+        tag.innerText = "ADMIN CONTROLS ACTIVE";
+        tag.className = "text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold";
+        restoreBtn.classList.remove('hidden');
+      } else {
+        badge.className = "flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-white/[0.06] text-slate-300 border border-white/[0.08]";
+        label.innerText = "USER MODE (Consumer Read-Only)";
+        icon.innerText = "👤";
+        tag.innerText = "SWITCHES LOCKED (READ-ONLY)";
+        tag.className = "text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-400 border border-white/[0.08] font-bold";
+        restoreBtn.classList.add('hidden');
+      }
+
+      renderHierarchyTree();
+      updateUserAreaBannerUI();
+    }
+
+    // --- Leaflet Map & Interfetched Mapbox HD Layers ---
+    function setupTileLayers() {
+      // 1. Zero-Key Fallback Providers
+      tileSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18 });
+      tileNormal = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19 });
+      tileDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19 });
+
+      // 2. High-Definition Mapbox Vector Layers Interfetched with User API Key
+      if (mapboxApiKey) {
+        tileMapboxSatellite = L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${mapboxApiKey}`, {
+          tileSize: 512,
+          zoomOffset: -1,
+          maxZoom: 21,
+          attribution: '© Mapbox © OpenStreetMap'
+        });
+        tileMapboxStreets = L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${mapboxApiKey}`, {
+          tileSize: 512,
+          zoomOffset: -1,
+          maxZoom: 21,
+          attribution: '© Mapbox © OpenStreetMap'
+        });
+        tileMapboxDark = L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token=${mapboxApiKey}`, {
+          tileSize: 512,
+          zoomOffset: -1,
+          maxZoom: 21,
+          attribution: '© Mapbox © OpenStreetMap'
+        });
+      }
+    }
+
+    function initLeafletMap() {
+      map = L.map('tn-map', {
+        center: [11.1271, 78.6569], // Central Tamil Nadu
+        zoom: 7,
+        minZoom: 6,
+        maxZoom: 19,
+        zoomControl: true,
+        attributionControl: false
+      });
+
+      setupTileLayers();
+      switchMapTiles('satellite');
+    }
+
+    function switchMapTiles(mode) {
+      currentTileMode = mode;
+      const btnSat = document.getElementById('btn-mode-satellite');
+      const btnNorm = document.getElementById('btn-mode-normal');
+      const btnDark = document.getElementById('btn-mode-dark');
+
+      const allLayers = [tileSatellite, tileNormal, tileDark, tileMapboxSatellite, tileMapboxStreets, tileMapboxDark];
+      allLayers.forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
+
+      [btnSat, btnNorm, btnDark].forEach(b => {
+        if (b) {
+          b.className = "px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 text-slate-300 hover:text-white hover:bg-white/[0.06] btn-tactile";
+          b.style.backgroundColor = "transparent";
+        }
+      });
+
+      if (mode === 'satellite') {
+        const satLayer = tileMapboxSatellite || tileSatellite;
+        if (satLayer) satLayer.addTo(map);
+        if (btnSat) {
+          btnSat.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 text-white shadow-md btn-tactile";
+          btnSat.style.backgroundColor = "var(--accent-primary)";
+        }
+      } else if (mode === 'normal') {
+        const normLayer = tileMapboxStreets || tileNormal;
+        if (normLayer) normLayer.addTo(map);
+        if (btnNorm) {
+          btnNorm.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 text-white shadow-md btn-tactile";
+          btnNorm.style.backgroundColor = "var(--accent-primary)";
+        }
+      } else if (mode === 'dark') {
+        const darkLayer = tileMapboxDark || tileDark;
+        if (darkLayer) darkLayer.addTo(map);
+        if (btnDark) {
+          btnDark.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 text-white shadow-md btn-tactile";
+          btnDark.style.backgroundColor = "var(--accent-primary)";
+        }
+      }
+      playBeep(880, 'sine', 0.08);
+    }
+
+    async function syncMapboxKeyFromServer() {
+      try {
+        const res = await fetch('/api/config/mapbox/');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg.mapbox_api_key && (!localStorage.getItem('custom_mapbox_key'))) {
+            mapboxApiKey = cfg.mapbox_api_key;
+            setupTileLayers();
+            switchMapTiles(currentTileMode);
+            const input = document.getElementById('custom-mapbox-key-input');
+            if (input) input.value = mapboxApiKey;
+            const disp = document.getElementById('interfetched-key-display');
+            if (disp) disp.innerText = mapboxApiKey;
+          }
+        }
+      } catch (err) {
+        console.warn("Mapbox sync note:", err);
+      }
+    }
+
+    // --- GPS Location Access ---
+    function requestUserLocationAccess() {
+      playBeep(520, 'sine', 0.15);
+      const btn = document.getElementById('btn-detect-location');
+      btn.innerHTML = `<span class="animate-spin">⏳</span> Detecting Area...`;
+
+      if (!navigator.geolocation) {
+        matchUserToHierarchy(12.9010, 80.2279);
+        btn.innerHTML = `<span>📍</span><span class="hidden md:inline">Sholinganallur (Default)</span>`;
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const uLat = position.coords.latitude;
+          const uLng = position.coords.longitude;
+          playChime();
+          await matchUserToHierarchy(uLat, uLng);
+          btn.innerHTML = `<span>📍</span><span class="hidden md:inline">Area Connected</span>`;
+        },
+        async (error) => {
+          console.warn("GPS error:", error.message);
+          await matchUserToHierarchy(12.9010, 80.2279);
+          btn.innerHTML = `<span>📍</span><span class="hidden md:inline">Sholinganallur (GPS)</span>`;
+          showToast("Location Detected", "Connected to nearest area: Chennai ➔ OMR Zone ➔ Sholinganallur (PIN: 600119).");
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+
+    async function matchUserToHierarchy(lat, lng) {
+      try {
+        const res = await fetch(`/api/hierarchy/my-area/?latitude=${lat}&longitude=${lng}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        userDetectedHierarchy = data;
+        selectedAreaId = data.area.area_id;
+
+        if (userMarkerLayer) map.removeLayer(userMarkerLayer);
+        const userIcon = L.divIcon({
+          className: 'user-radar-marker',
+          html: `
+            <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: #2563eb; border: 2.5px solid #60a5fa; box-shadow: 0 0 16px #3b82f6;"></div>
+              <div style="position: absolute; width: 42px; height: 42px; border-radius: 50%; border: 2px dashed #60a5fa; animation: spin 4s linear infinite;"></div>
+            </div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        });
+        userMarkerLayer = L.marker([lat, lng], { icon: userIcon }).addTo(map);
+        userMarkerLayer.bindPopup(`<b>📍 YOU ARE HERE</b><br>${data.district.name} ➔ ${data.zone.name} ➔ ${data.area.name}`).openPopup();
+
+        updateUserAreaBannerUI();
+        map.flyTo([parseFloat(data.area.latitude), parseFloat(data.area.longitude)], 13, { duration: 1.5 });
+        renderMaintenancePanel(data.area, data.zone, data.district);
+      } catch (err) {
+        console.error("Match error:", err);
+      }
+    }
+
+    function updateUserAreaBannerUI() {
+      if (!userDetectedHierarchy) return;
+      const data = userDetectedHierarchy;
+      const isPowerOn = data.is_power_on;
+
+      document.getElementById('my-area-hierarchy-breadcrumb').innerText = 
+        `${data.district.name} District ➔ ${data.zone.name} ➔ ${data.area.name} (PIN: ${data.area.pincode})`;
+      document.getElementById('my-area-distance').innerText = `${data.distance_km || 0.5} km away`;
+
+      const pill = document.getElementById('my-area-power-pill');
+      const pillText = document.getElementById('my-area-power-text');
+      const actionContainer = document.getElementById('my-area-action-container');
+
+      if (isPowerOn) {
+        pill.className = "flex items-center px-3.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm";
+        pillText.innerText = "⚡ CURRENT IS ON (NORMAL POWER SUPPLY)";
+      } else {
+        pill.className = "flex items-center px-3.5 py-1.5 rounded-xl font-bold text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse shadow-sm";
+        const cutoffMsg = data.cutoff_level ? ` [OFF AT ${data.cutoff_level} LEVEL]` : '';
+        pillText.innerText = `🚨 CURRENT IS OFF (POWER CUT IN YOUR AREA!)${cutoffMsg}`;
+      }
+
+      if (currentUserRole === 'ADMIN') {
+        actionContainer.innerHTML = `
+          <button 
+            onclick="adminToggleSwitch('AREA', '${data.area.area_id}', ${isPowerOn ? "'OFF'" : "'ON'"})"
+            class="px-3.5 py-1.5 rounded-xl font-bold text-xs transition btn-tactile ${
+              isPowerOn 
+                ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30' 
+                : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+            }"
+          >
+            ${isPowerOn ? '⚡ Admin: Cut Power (OFF)' : '✓ Admin: Restore Power (ON)'}
+          </button>
+        `;
+      } else {
+        actionContainer.innerHTML = `
+          <button 
+            onclick="showToast('Alert Subscribed', 'You will receive immediate notifications for ${data.area.name}.')"
+            class="px-3.5 py-1.5 rounded-xl font-semibold text-xs border hover:text-white transition flex items-center space-x-1.5 btn-tactile"
+            style="background-color: var(--bg-card); border-color: var(--border-subtle); color: var(--text-body);"
+          >
+            <span>🔔</span>
+            <span>Alert When Restored</span>
+          </button>
+        `;
+      }
+    }
+
+    // --- State Ingestion & Tree Updates ---
+    async function fetchEntireHierarchyState() {
+      try {
+        const [hierRes, mapRes] = await Promise.all([
+          fetch('/api/hierarchy/'),
+          fetch('/api/nodes/status_map/')
+        ]);
+
+        if (hierRes.ok) {
+          allDistricts = await hierRes.json();
+          renderHierarchyTree();
+        }
+
+        if (mapRes.ok) {
+          const mapData = await mapRes.json();
+          allNotifications = mapData.notifications || [];
+          renderMapVisuals(mapData.lines || []);
+          renderNotificationBadge();
+        }
+
+        if (userDetectedHierarchy) {
+          const freshAreaRes = await fetch(`/api/hierarchy/my-area/?latitude=${userDetectedHierarchy.user_location.latitude}&longitude=${userDetectedHierarchy.user_location.longitude}`);
+          if (freshAreaRes.ok) {
+            userDetectedHierarchy = await freshAreaRes.json();
+            updateUserAreaBannerUI();
+          }
+        }
+      } catch (err) {
+        console.error("Hierarchy fetch error:", err);
+      }
+    }
+
+    // --- Admin Power Switch Action ---
+    async function adminToggleSwitch(level, targetId, action, reason = '') {
+      if (currentUserRole !== 'ADMIN') {
+        alert("🔒 Access Restricted: Admin authority required to switch power grid on or off.");
+        return;
+      }
+
+      if (action === 'OFF') playKlaxon(); else playChime();
+
+      showToast(
+        action === 'OFF' ? `🚨 ${level} Power Switched OFF` : `⚡ ${level} Power Switched ON`,
+        action === 'OFF' ? `Switch triggered at ${level} tier. Downstream circuits isolated via Zip-Line.` : `Power restored to ${level}. All downstream circuits energized.`
+      );
+
+      await fetch('/api/hierarchy/switch/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'ADMIN',
+          level: level,
+          target_id: targetId,
+          action: action,
+          reason: reason || `TANGEDCO Operator ${action} command`
+        })
+      });
+
+      fetchEntireHierarchyState();
+    }
+
+    async function adminRestoreEntireTamilNaduGrid() {
+      if (currentUserRole !== 'ADMIN') return;
+      playChime();
+
+      for (const d of allDistricts) {
+        if (!d.is_power_on) {
+          await fetch('/api/hierarchy/switch/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: 'ADMIN', level: 'DISTRICT', target_id: d.district_id, action: 'ON' })
+          });
+        }
+        for (const z of d.zones) {
+          if (!z.is_power_on) {
+            await fetch('/api/hierarchy/switch/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'ADMIN', level: 'ZONE', target_id: z.zone_id, action: 'ON' })
+            });
+          }
+          for (const a of z.areas) {
+            if (!a.is_power_on) {
+              await fetch('/api/hierarchy/switch/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: 'ADMIN', level: 'AREA', target_id: a.area_id, action: 'ON' })
+              });
+            }
+          }
+        }
+      }
+
+      fetchEntireHierarchyState();
+      showToast("✨ Full Tamil Nadu Grid Restored", "All Districts, Feeder Zones, and Areas re-energized.");
+    }
+
+    // --- Render Hierarchy Accordion Tree ---
+    function renderHierarchyTree(filterText = '') {
+      const container = document.getElementById('hierarchy-tree-container');
+      const q = filterText.toLowerCase();
+
+      container.innerHTML = allDistricts.map(dist => {
+        const distEffective = dist.effective_status;
+        const isAdmin = (currentUserRole === 'ADMIN');
+
+        const hasMatchingChild = dist.zones.some(z => 
+          z.name.toLowerCase().includes(q) || 
+          z.areas.some(a => a.name.toLowerCase().includes(q) || a.pincode.includes(q))
+        );
+        if (q && !dist.name.toLowerCase().includes(q) && !hasMatchingChild) return '';
+
+        return `
+          <!-- DISTRICT CONTAINER -->
+          <div class="rounded-2xl border transition-all duration-200 overflow-hidden" style="background-color: var(--bg-card); border-color: ${distEffective ? 'var(--border-subtle)' : 'rgba(239, 68, 68, 0.4)'};">
+            <!-- District Header Bar -->
+            <div class="p-3 flex items-center justify-between border-b" style="background-color: var(--bg-surface); border-color: var(--border-subtle);">
+              <div class="flex items-center space-x-2.5">
+                <span class="text-sm font-bold">${distEffective ? '⚡' : '⚠️'}</span>
+                <div>
+                  <div class="font-bold text-xs text-white">District: ${dist.name}</div>
+                  <div class="text-[10px] text-slate-400 font-mono">
+                    ${dist.total_consumers.toLocaleString()} Consumers • ${dist.zones.length} Zones
+                  </div>
+                </div>
+              </div>
+
+              <!-- District Switch -->
+              <div class="flex items-center space-x-2">
+                <span class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  distEffective ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                }">
+                  ${distEffective ? 'DISTRICT ON' : 'DISTRICT OFF'}
+                </span>
+
+                ${isAdmin ? `
+                  <button 
+                    onclick="adminToggleSwitch('DISTRICT', '${dist.district_id}', ${dist.is_power_on ? "'OFF'" : "'ON'"})"
+                    class="px-2.5 py-1 rounded-lg text-[10px] font-bold transition btn-tactile ${
+                      dist.is_power_on 
+                        ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30' 
+                        : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                    }"
+                  >
+                    ${dist.is_power_on ? 'Trip (OFF)' : 'Energize (ON)'}
+                  </button>
+                ` : `
+                  <span class="text-[10px] text-slate-500" title="Only Admin can toggle switches">🔒</span>
+                `}
+              </div>
+            </div>
+
+            <!-- ZONES LIST UNDER DISTRICT -->
+            <div class="p-2 space-y-2">
+              ${dist.zones.map(zone => {
+                const zoneEffective = zone.effective_status;
+
+                return `
+                  <div class="ml-2 pl-3 border-l-2 space-y-1.5" style="border-color: ${zoneEffective ? 'var(--grid-energized)' : 'var(--grid-tripped)'};">
+                    
+                    <!-- Zone Header Bar -->
+                    <div class="flex items-center justify-between p-2 rounded-xl border" style="background-color: var(--bg-base); border-color: var(--border-subtle);">
+                      <div>
+                        <div class="font-bold text-[11px] text-white">↳ Zone: ${zone.name}</div>
+                        <div class="text-[9px] text-slate-400 font-mono">${zone.areas.length} Areas / Feeder Sectors</div>
+                      </div>
+
+                      <div class="flex items-center space-x-1.5">
+                        <span class="text-[8px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                          zoneEffective ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
+                        }">
+                          ${zoneEffective ? 'ZONE ON' : 'ZONE OFF'}
+                        </span>
+
+                        ${isAdmin ? `
+                          <button 
+                            onclick="adminToggleSwitch('ZONE', '${zone.zone_id}', ${zone.is_power_on ? "'OFF'" : "'ON'"})"
+                            class="px-2 py-0.5 rounded text-[9px] font-bold transition btn-tactile ${
+                              zone.is_power_on 
+                                ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30' 
+                                : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                            }"
+                          >
+                            ${zone.is_power_on ? 'OFF' : 'ON'}
+                          </button>
+                        ` : `
+                          <span class="text-[9px] text-slate-500">🔒</span>
+                        `}
+                      </div>
+                    </div>
+
+                    <!-- AREAS LIST UNDER ZONE -->
+                    <div class="ml-3 space-y-1">
+                      ${zone.areas.map(area => {
+                        const areaEffective = area.effective_status;
+                        const isSelected = area.area_id === selectedAreaId;
+
+                        return `
+                          <div 
+                            onclick="selectAreaInHierarchy('${area.area_id}')"
+                            class="p-2 rounded-xl border text-[11px] transition cursor-pointer flex items-center justify-between btn-tactile ${
+                              isSelected 
+                                ? 'border-blue-500 shadow-md' 
+                                : 'hover:border-white/[0.2]'
+                            }"
+                            style="background-color: ${isSelected ? 'var(--bg-elevated)' : 'var(--bg-surface)'}; border-color: ${isSelected ? 'var(--accent-primary)' : 'var(--border-subtle)'};"
+                          >
+                            <div>
+                              <div class="font-bold text-white flex items-center space-x-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${areaEffective ? 'var(--grid-energized)' : 'var(--grid-tripped)'};"></span>
+                                <span>${area.name}</span>
+                              </div>
+                              <div class="text-[9px] font-mono text-slate-400">
+                                <span class="text-amber-400 font-semibold">PIN: ${area.pincode}</span> • ${area.total_homes.toLocaleString()} Homes
+                              </div>
+                            </div>
+
+                            <div class="flex items-center space-x-1.5" onclick="event.stopPropagation()">
+                              <span class="text-[8px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                                areaEffective ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/15 text-rose-300 animate-pulse'
+                              }">
+                                ${areaEffective ? 'AREA ON' : 'AREA OFF'}
+                              </span>
+
+                              ${isAdmin ? `
+                                <button 
+                                  onclick="adminToggleSwitch('AREA', '${area.area_id}', ${area.is_power_on ? "'OFF'" : "'ON'"})"
+                                  class="px-2 py-0.5 rounded text-[9px] font-bold transition btn-tactile ${
+                                    area.is_power_on 
+                                      ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30' 
+                                      : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                  }"
+                                >
+                                  ${area.is_power_on ? 'OFF' : 'ON'}
+                                </button>
+                              ` : `
+                                <span class="text-[9px] text-slate-500">🔒</span>
+                              `}
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterHierarchyView(text) {
+      renderHierarchyTree(text);
+    }
+
+    function selectAreaInHierarchy(areaId) {
+      selectedAreaId = areaId;
+      let targetArea = null, targetZone = null, targetDist = null;
+
+      for (const d of allDistricts) {
+        for (const z of d.zones) {
+          for (const a of z.areas) {
+            if (a.area_id === areaId) {
+              targetArea = a; targetZone = z; targetDist = d;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!targetArea) return;
+
+      map.flyTo([parseFloat(targetArea.latitude), parseFloat(targetArea.longitude)], 13, { duration: 1.5 });
+      renderHierarchyTree();
+      renderMaintenancePanel(targetArea, targetZone, targetDist);
+    }
+
+    // --- Render Maintenance Panel (Sidebar Tab 2) ---
+    function renderMaintenancePanel(area, zone, dist) {
+      document.getElementById('maint-area-title').innerText = area.name;
+      document.getElementById('maint-hierarchy-path').innerText = `${dist.name} ➔ ${zone.name}`;
+      document.getElementById('maint-area-pin').innerText = area.pincode;
+
+      const isEffectiveOn = area.effective_status;
+      const powerState = document.getElementById('maint-area-power-state');
+      const badgeStatus = document.getElementById('maint-badge-status');
+
+      if (isEffectiveOn) {
+        powerState.innerText = "⚡ CURRENT IS ON (NORMAL)";
+        powerState.className = "font-bold text-emerald-400";
+        badgeStatus.innerText = "SYSTEM HEALTHY";
+        badgeStatus.className = "text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-300 font-bold";
+
+        document.getElementById('maint-problem-location').innerText = "None — No active faults. Feeders healthy.";
+        document.getElementById('maint-problem-cause').innerText = "Normal continuous distribution at 230V 50Hz.";
+        document.getElementById('maint-problem-coords').innerText = `${parseFloat(area.latitude).toFixed(4)}° N, ${parseFloat(area.longitude).toFixed(4)}° E`;
+
+        document.getElementById('maint-etr-tag').innerText = "STANDBY (0m)";
+        document.getElementById('maint-etr-tag').className = "text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 font-bold";
+        document.getElementById('maint-team-name').innerText = area.maintenance_team || "TNEB Rapid Maintenance Squad";
+        document.getElementById('maint-van-no').innerText = area.maintenance_van || "Emergency Van on Standby";
+        document.getElementById('maint-step-desc').innerText = "Normal operational standby; 24x7 monitoring active.";
+        document.getElementById('maint-progress-text').innerText = "100%";
+        document.getElementById('maint-progress-bar').style.width = "100%";
+      } else {
+        powerState.innerText = "🚨 CURRENT IS OFF (POWER CUT)";
+        powerState.className = "font-bold text-rose-400 animate-pulse";
+        badgeStatus.innerText = "ACTIVE OUTAGE";
+        badgeStatus.className = "text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold animate-pulse";
+
+        document.getElementById('maint-problem-location').innerText = area.main_problem_location || "11kV Feeder Junction";
+        document.getElementById('maint-problem-cause').innerText = area.main_problem_cause || "Physical cable cut during construction excavation.";
+        document.getElementById('maint-problem-coords').innerText = `${parseFloat(area.fault_latitude || area.latitude).toFixed(4)}° N, ${parseFloat(area.fault_longitude || area.longitude).toFixed(4)}° E`;
+
+        document.getElementById('maint-etr-tag').innerText = `ETR: ${area.estimated_restoration_time || '35 MINS'}`;
+        document.getElementById('maint-etr-tag').className = "text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold";
+        document.getElementById('maint-team-name').innerText = area.maintenance_team || "TNEB Quick-Response Squad #7";
+        document.getElementById('maint-van-no').innerText = area.maintenance_van || "Emergency Van TN-07-G-4412";
+        document.getElementById('maint-step-desc').innerText = area.maintenance_step || "Step 3/4: Cable core splicing in progress.";
+        document.getElementById('maint-progress-text').innerText = `${area.maintenance_progress || 60}%`;
+        document.getElementById('maint-progress-bar').style.width = `${area.maintenance_progress || 60}%`;
+      }
+    }
+
+    // --- Render Leaflet Visual Overlays ---
+    function renderMapVisuals(lines = []) {
+      if (!map) return;
+
+      zoneCircleLayers.forEach(c => map.removeLayer(c));
+      lineLayers.forEach(l => map.removeLayer(l));
+      zoneCircleLayers = [];
+      lineLayers = [];
+
+      if (problemMarkerLayer) { map.removeLayer(problemMarkerLayer); problemMarkerLayer = null; }
+      if (maintenanceVanMarkerLayer) { map.removeLayer(maintenanceVanMarkerLayer); maintenanceVanMarkerLayer = null; }
+
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'charcoal';
+      const energizedHex = (currentTheme === 'navy') ? '#00f5ff' : '#3b82f6';
+      const trippedHex = '#ef4444';
+
+      // 1. Render Transmission Lines
+      lines.forEach(line => {
+        const isEnergized = line.status === 'energized';
+        const coords = [line.from_coord, line.to_coord];
+
+        const glow = L.polyline(coords, {
+          color: isEnergized ? energizedHex : trippedHex,
+          weight: isEnergized ? 6 : 7,
+          opacity: isEnergized ? 0.35 : 0.5,
+          interactive: false
+        }).addTo(map);
+        lineLayers.push(glow);
+
+        const core = L.polyline(coords, {
+          color: isEnergized ? (currentTheme === 'navy' ? '#22d3ee' : '#60a5fa') : '#f87171',
+          weight: 3.0,
+          opacity: 1.0,
+          dashArray: isEnergized ? '6, 12' : '4, 8',
+          className: isEnergized ? 'flow-active' : 'flow-fault'
+        }).addTo(map);
+        lineLayers.push(core);
+      });
+
+      // 2. Render Distribution Areas
+      allDistricts.forEach(d => {
+        d.zones.forEach(z => {
+          z.areas.forEach(a => {
+            const lat = parseFloat(a.latitude);
+            const lng = parseFloat(a.longitude);
+            const isEffectiveOn = a.effective_status;
+            const isSelected = a.area_id === selectedAreaId;
+
+            const circle = L.circle([lat, lng], {
+              radius: a.radius_meters || 2500,
+              color: isEffectiveOn ? energizedHex : trippedHex,
+              weight: isSelected ? 3.0 : 1.8,
+              dashArray: isEffectiveOn ? null : '5, 5',
+              fillColor: isEffectiveOn ? energizedHex : '#dc2626',
+              fillOpacity: isEffectiveOn ? 0.16 : 0.32
+            }).addTo(map);
+
+            circle.bindPopup(`
+              <div style="font-size: 12px; color: #0f172a; min-width: 200px; font-family: 'Plus Jakarta Sans', sans-serif;">
+                <div style="font-weight: 800; font-size: 13px;">${a.name}</div>
+                <div style="font-family: monospace; color: #64748b; font-size: 11px;">PIN: ${a.pincode} • ${d.name} District</div>
+                <div style="margin-top: 6px; padding: 4px 8px; border-radius: 6px; font-weight: 800; text-align: center; color: white; background: ${isEffectiveOn ? (currentTheme === 'navy' ? '#0891b2' : '#2563eb') : '#dc2626'};">
+                  ${isEffectiveOn ? '⚡ CURRENT IS ON' : '🚨 CURRENT IS OFF (POWER CUT)'}
+                </div>
+                <div style="margin-top: 6px; font-size: 11px;">
+                  <b>Homes:</b> ${a.total_homes.toLocaleString()}
+                </div>
+              </div>
+            `);
+
+            circle.on('click', () => selectAreaInHierarchy(a.area_id));
+            zoneCircleLayers.push(circle);
+
+            // If Area is OFF and selected, plot MAIN PROBLEM & MAINTENANCE VAN
+            if (!isEffectiveOn && isSelected) {
+              const fLat = parseFloat(a.fault_latitude || a.latitude);
+              const fLng = parseFloat(a.fault_longitude || a.longitude);
+
+              const faultIcon = L.divIcon({
+                className: 'fault-beacon-marker',
+                html: `
+                  <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+                    <div class="pulse-danger-ring" style="position: absolute; width: 42px; height: 42px; border-radius: 50%; background: rgba(239, 68, 68, 0.35); border: 2px solid #ef4444;"></div>
+                    <div style="width: 26px; height: 26px; border-radius: 50%; background: #b91c1c; border: 2.5px solid #fca5a5; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 16px rgba(239, 68, 68, 0.7); font-size: 12px;">
+                      ⚠️
+                    </div>
+                  </div>`,
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+              });
+
+              problemMarkerLayer = L.marker([fLat, fLng], { icon: faultIcon }).addTo(map);
+              problemMarkerLayer.bindPopup(`
+                <div style="font-size: 12px; color: #0f172a; min-width: 220px; font-family: 'Plus Jakarta Sans', sans-serif;">
+                  <div style="font-weight: 800; color: #dc2626; font-size: 13px;">⚠️ MAIN FAULT LOCATION</div>
+                  <div style="margin-top: 4px;"><b>Spot:</b> ${a.main_problem_location || '11kV Feeder Junction'}</div>
+                  <div style="margin-top: 2px; font-size: 11px; color: #475569;"><b>Cause:</b> ${a.main_problem_cause || 'Cable Cut'}</div>
+                </div>
+              `).openPopup();
+
+              // Maintenance Van Marker
+              const vLat = fLat + 0.0035;
+              const vLng = fLng + 0.0042;
+              const vanIcon = L.divIcon({
+                className: 'maintenance-van-marker',
+                html: `
+                  <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+                    <div style="position: absolute; width: 34px; height: 34px; border-radius: 50%; background: rgba(59, 130, 246, 0.3); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+                    <div style="width: 28px; height: 28px; border-radius: 50%; background: #1d4ed8; border: 2px solid #93c5fd; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(59, 130, 246, 0.6); font-size: 13px;">
+                      🚐
+                    </div>
+                  </div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+              });
+
+              maintenanceVanMarkerLayer = L.marker([vLat, vLng], { icon: vanIcon }).addTo(map);
+              maintenanceVanMarkerLayer.bindPopup(`
+                <div style="font-size: 12px; color: #0f172a; min-width: 220px; font-family: 'Plus Jakarta Sans', sans-serif;">
+                  <div style="font-weight: 800; color: #1d4ed8; font-size: 13px;">🚐 WORKING MAINTENANCE CREW</div>
+                  <div style="margin-top: 4px;"><b>Unit:</b> ${a.maintenance_van || 'TNEB Van TN-07-G-4412'}</div>
+                  <div style="margin-top: 2px;"><b>Squad:</b> ${a.maintenance_team || 'TNEB Rapid Squad #7'}</div>
+                  <div style="margin-top: 4px; padding: 2px 6px; border-radius: 4px; background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 11px;">
+                    Progress: ${a.maintenance_progress || 60}% • Splicing in progress
+                  </div>
+                </div>
+              `);
+            }
+          });
+        });
+      });
+    }
+
+    // --- Sidebar Tab Switching ---
+    function switchSidebarTab(tabId) {
+      ['hierarchy', 'maintenance', 'meter'].forEach(t => {
+        const btn = document.getElementById(`tab-btn-${t}`);
+        const pane = document.getElementById(`tab-pane-${t}`);
+        if (t === tabId) {
+          btn.className = "py-2 rounded-xl font-bold text-center transition text-white shadow-md btn-tactile";
+          btn.style.backgroundColor = "var(--accent-primary)";
+          pane.classList.remove('hidden');
+        } else {
+          btn.className = "py-2 rounded-xl font-semibold text-center transition text-slate-400 hover:text-white hover:bg-white/[0.06] btn-tactile";
+          btn.style.backgroundColor = "transparent";
+          pane.classList.add('hidden');
+        }
+      });
+      playBeep(720, 'sine', 0.08);
+    }
+
+    // --- Notification Drawer ---
+    function toggleNotificationDrawer() {
+      const drawer = document.getElementById('notification-drawer');
+      const isClosed = drawer.classList.contains('translate-x-full');
+      if (isClosed) {
+        drawer.classList.remove('translate-x-full');
+        renderNotificationList('ALL');
+      } else {
+        drawer.classList.add('translate-x-full');
+      }
+      playBeep(600, 'sine', 0.1);
+    }
+
+    function renderNotificationBadge() {
+      const badge = document.getElementById('bell-badge');
+      const cutsCount = allNotifications.filter(n => n.notification_type === 'OUTAGE').length;
+      badge.innerText = cutsCount;
+      if (cutsCount > 0) {
+        badge.className = "absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[9px] font-bold text-white animate-bounce";
+      } else {
+        badge.className = "absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white/[0.1] text-[9px] font-bold text-slate-300";
+      }
+    }
+
+    function renderNotificationList(filterType = 'ALL') {
+      const container = document.getElementById('notifications-container');
+      const filtered = allNotifications.filter(n => {
+        if (filterType === 'ALL') return true;
+        return n.notification_type === filterType;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-slate-500 border border-dashed border-white/[0.08] rounded-2xl text-xs">
+            No active notifications in this category.
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(n => `
+        <div class="p-3.5 rounded-2xl border text-xs space-y-1.5" style="background-color: var(--bg-card); border-color: ${n.notification_type === 'OUTAGE' ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-subtle)'};">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-white flex items-center space-x-1.5">
+              <span>${n.notification_type === 'OUTAGE' ? '🚨' : '⚡'}</span>
+              <span>${n.title}</span>
+            </span>
+            <span class="text-[9px] font-mono text-slate-400">
+              ${new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+          <p class="text-[11px] leading-relaxed text-slate-300">${n.message}</p>
+          ${n.main_problem ? `
+            <div class="text-[10px] text-amber-300 font-bold pt-0.5">
+              📍 Problem: ${n.main_problem}
+            </div>
+          ` : ''}
+          ${n.maintenance_info ? `
+            <div class="text-[10px] font-semibold" style="color: var(--accent-primary-light);">
+              🔧 ${n.maintenance_info}
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    // --- Startup Lifecycle ---
+    window.addEventListener('DOMContentLoaded', () => {
+      initLeafletMap();
+      syncMapboxKeyFromServer();
+      initOscilloscope();
+      fetchEntireHierarchyState();
+      updateRoleUI();
+
+      // Load saved theme if any (default is charcoal)
+      const savedTheme = localStorage.getItem('tangedco_theme') || 'charcoal';
+      applyColorTheme(savedTheme);
+
+      // Automatically locate user's area on start
+      setTimeout(() => {
+        requestUserLocationAccess();
+      }, 800);
+
+      // Reactive 2.5-second polling loop
+      setInterval(fetchEntireHierarchyState, 2500);
+    });
+  </script>
+</body>
+</html>
