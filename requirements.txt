@@ -1,0 +1,14 @@
+# AI-Powered Smart Grid Fault Localization System
+# Python Dependency Requirements
+
+Django>=4.2.0,<5.1.0
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.0
+django-cors-headers>=4.0.0
+
+# Numerical Processing & Optional ML
+numpy>=1.23.0
+requests>=2.28.0
+
+# Optional Neural Network training (heuristics fallback is included for lightweight environments)
+# tensorflow>=2.12.0
